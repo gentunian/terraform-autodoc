@@ -27,55 +27,68 @@ do
 package main
 
 import (
-	"fmt"
-	"reflect"
+        "fmt"
+        "reflect"
+        "strconv"
+        "strings"
         tfProvider "$repo/$PROVIDER_NAME"
 )
 
 func main() {
-	provider := tfProvider.Provider()
-	providerValue := reflect.ValueOf(provider).Elem()
-	providerData := providerValue.FieldByName("Schema")
-	resourceData("$PROVIDER_NAME", providerData)
-	providerResources("Resources", providerValue)
-        providerResources("DataSources", providerValue)
+        provider := tfProvider.Provider()
+        providerValue := reflect.ValueOf(provider).Elem()
+        providerData := providerValue.FieldByName("Schema")
+        providerJSON := resourceData("openstack", providerData)
+        resourcesJSON := providerResources("Resources", providerValue)
+        datasourcesJSON := providerResources("DataSources", providerValue)
+        fmt.Printf("{ \"resources\": %s, \"datasources\": %s, \"provider\": %s }", resourcesJSON, datasourcesJSON, providerJSON)
 }
 
-func providerResources(resourceType string, provider reflect.Value) {
-	resourcesMap := provider.FieldByName(resourceType + "Map")
-	resourcesMapKeys := resourcesMap.MapKeys()
-	if len(resourcesMapKeys) > 0 {
-		fmt.Println("* " + resourceType)
-	}
-	for i := range resourcesMapKeys {
-		item := resourcesMapKeys[i]
-		resourceSchema := resourcesMap.MapIndex(item).Elem().FieldByName("Schema")
-		resourceData(item.String(), resourceSchema)
-	}
+func providerResources(resourceType string, value reflect.Value) string {
+        resourcesMap := value.FieldByName(resourceType + "Map")
+        resourcesMapKeys := resourcesMap.MapKeys()
+        var a []string
+        for i := range resourcesMapKeys {
+                item := resourcesMapKeys[i]
+                resourceSchema := resourcesMap.MapIndex(item).Elem().FieldByName("Schema")
+                json := resourceData(item.String(), resourceSchema)
+                a = append(a, json)
+        }
+        return fmt.Sprintf("[%s]", strings.Join(a, ","))
 }
 
-func resourceData(resourceName string, schema reflect.Value) {
-	fmt.Printf("    * %s\n", resourceName)
-	schemaKeys := schema.MapKeys()
-	for i := range schemaKeys {
-		argumentName := schemaKeys[i].String()
-		argumentStruct := schema.MapIndex(schemaKeys[i]).Elem()
-		argumentDescription := argumentStruct.FieldByName("Description").String()
-		argumentDeprecated := argumentStruct.FieldByName("Deprecated").String()
-		if argumentDeprecated != "" {
-			argumentDeprecated = "[DEPRECATED] " + argumentDeprecated
-		}
-		argumentRequired := ""
-		if argumentStruct.FieldByName("Required").Bool() {
-			argumentRequired = "Required"
-		} else if argumentStruct.FieldByName("Optional").Bool() {
-			argumentRequired = "Optional"
-		} else {
-			argumentRequired = "Computed"
-		}
+func resourceData(resourceName string, schema reflect.Value) string {
+        schemaKeys := schema.MapKeys()
+        var a []string
+        for i := range schemaKeys {
+                argumentName := schemaKeys[i].String()
+                argumentStruct := schema.MapIndex(schemaKeys[i]).Elem()
+                argumentDescription, _ := strconv.Unquote(strings.Replace(argumentStruct.FieldByName("Description").String(), "\n", "", 10))
+                argumentDeprecated, _ := strconv.Unquote(strings.Replace(argumentStruct.FieldByName("Deprecated").String(), "\n", "", 10))
+                if argumentDeprecated != "" {
+                        argumentDeprecated = "[DEPRECATED] " + argumentDeprecated
+                }
+                argumentRequired := ""
+                if argumentStruct.FieldByName("Required").Bool() {
+                        argumentRequired = "Required"
+                } else if argumentStruct.FieldByName("Optional").Bool() {
+                        argumentRequired = "Optional"
+                } else {
+                        argumentRequired = "Computed"
+                }
+                json := fmt.Sprintf("{\"name\": \"%s\", \"description\": \"(%s) %s%s\"}", argumentName, argumentRequired, argumentDescription, argumentDeprecated)
+                a = append(a, json)
+        }
 
-		fmt.Printf("\t* %-30s: (%s) %s%s\n", argumentName, argumentRequired, argumentDescription, argumentDeprecated)
-	}
+        values := strings.SplitN(resourceName, "_", 2)
+        resourceURL := "https://www.terraform.io/docs/providers/%s/"
+        if len(values) == 1 {
+                resourceURL = fmt.Sprintf(resourceURL+"index.html", values[0])
+        } else {
+                resourceURL = fmt.Sprintf(resourceURL+"r/%s.html", values[0], values[1])
+        }
+
+        return fmt.Sprintf("{\"name\": \"%s\", \"url\": \"%s\", \"arguments\": [%s]}", resourceName, resourceURL, strings.Join(a, ","))
 }
 EOF
 done
