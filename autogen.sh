@@ -4,9 +4,6 @@
 # TODO: improve this :)
 EXCLUDE=" scaffolding azure-classic "
 
-truncate -s0 imports.block
-truncate -s0 provider.block
-
 # We could use Link header but keep it simple
 GITHUB_REPO_URL=https://api.github.com/orgs/terraform-providers/repos?page=\${PAGE}
 while true;
@@ -26,35 +23,22 @@ do
     if [ "${EXCLUDE/* ${PROVIDER_NAME} */${PROVIDER_NAME}}" == "${PROVIDER_NAME}" ]; then
         continue
     fi
-    cat <<EOF >> imports.block
-    "$repo/$PROVIDER_NAME"
-EOF
-    cat <<EOF >> provider.block
-        {
-		provider := $PROVIDER_NAME.Provider()
-		providerValue := reflect.ValueOf(provider).Elem()
-		providerData := providerValue.FieldByName("Schema")
-		resourceData("$PROVIDER_NAME", providerData)
-		providerResources("Resources", providerValue)
-		providerResources("DataSources", providerValue)
-	}
-EOF
-done
-
-cat <<EOF > autodoc.go
+    cat <<EOF >> autodoc_${PROVIDER_NAME}.go
 package main
 
 import (
 	"fmt"
 	"reflect"
-
-$(cat imports.block)
+        tfProvider "$repo/$PROVIDER_NAME"
 )
 
 func main() {
-	fmt.Printf("hello, world\n")
-
-$(cat provider.block)
+	provider := tfProvider.Provider()
+	providerValue := reflect.ValueOf(provider).Elem()
+	providerData := providerValue.FieldByName("Schema")
+	resourceData("$PROVIDER_NAME", providerData)
+	providerResources("Resources", providerValue)
+        providerResources("DataSources", providerValue)
 }
 
 func providerResources(resourceType string, provider reflect.Value) {
@@ -94,5 +78,6 @@ func resourceData(resourceName string, schema reflect.Value) {
 	}
 }
 EOF
+done
 
 echo "autodoc.go file created..."
