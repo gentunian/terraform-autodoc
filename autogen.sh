@@ -1,25 +1,31 @@
 #!/usr/bin/env sh
 
+# hacky way to exclude packages, use spaces at start, end and between words
+# TODO: improve this :)
+EXCLUDE=" scaffolding azure-classic "
+
 truncate -s0 imports.block
 truncate -s0 provider.block
 
 # We could use Link header but keep it simple
-PAGE=1
 GITHUB_REPO_URL=https://api.github.com/orgs/terraform-providers/repos?page=\${PAGE}
-# REPOS=$(eval curl -s ${GITHUB_REPO_URL} | jq -r 'map(.html_url | split("https://")[1]) | join("\n")')
 while true;
 do
+    PAGE=$((PAGE + 1))
     echo "Getting github repositories from: $(eval echo ${GITHUB_REPO_URL})"
     REPOS=$(eval curl -s ${GITHUB_REPO_URL} | jq -r 'map(.html_url | split("https://")[1]) | join("\n")')
     [ -z "${REPOS}" ] && echo "Repositories found: $(echo ${PROVIDERS} | wc -w)." && break
     PROVIDERS="${PROVIDERS} ${REPOS}"
-    PAGE=$((PAGE + 1))
+
 done
 
 # Process providers
 for repo in ${PROVIDERS};
 do
     PROVIDER_NAME=${repo/*terraform-provider-/}
+    if [ "${EXCLUDE/* ${PROVIDER_NAME} */${PROVIDER_NAME}}" == "${PROVIDER_NAME}" ]; then
+        continue
+    fi
     cat <<EOF >> imports.block
     "$repo/$PROVIDER_NAME"
 EOF
