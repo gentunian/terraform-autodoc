@@ -21,9 +21,8 @@ then it could be parsed by external tools for whatever reason you want.
 
 Each provider for terraform is a github repository in `terraform-providers`
 organization. The script clones each repo, generates a go file per repo, and via
-reflection inspect each [`Provider`](https://github.com/hashicorp/terraform/blob/master/helper/schema/provider.go#L25) object. I'm using reflection because for
-some reason the [`Schema`](git clone https://github.com/gentunian/terraform-autodoc.git
-) field is not accesible outside terraform package.
+reflection inspect each [`Provider`](https://github.com/hashicorp/terraform/blob/master/helper/schema/provider.go#L25) object.I'm using reflection because for
+some reason the [`Schema`](https://github.com/hashicorp/terraform/blob/master/helper/schema/schema.go#L38) field is not accesible outside terraform package.
 
 
 # Use
